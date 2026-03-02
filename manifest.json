@@ -1,0 +1,15 @@
+{
+  "name": "Rekapitulasi Nilai",
+  "short_name": "RekapPTS",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2641/2641409.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+	<link rel="manifest" href="manifest.json">
+	<script>
+	if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+	</script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Rekap Nilai</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+	
+        :root {
+            --primary: #1e3a8a;
+            --elegant-green: #0f766e;
+            --soft-green: #ecfdf5;
+            --bg: #f8fafc;
+        }
+
+        @font-face {
+            font-family: 'ae_AlMohanad';
+            src: url('https://fonts.cdnfonts.com/s/73154/ae_AlMohanad.woff') format('woff');
+        }
+
+		body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 5px 15px; color: #1e293b; }
+		.container { max-width: 100%; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+		.header-title { text-align: center; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+		.header-title h2 { margin: 0 0 5px 0; font-size: 20px; color: var(--primary); }
+		.header-title h3 { margin: 0; font-size: 15px; font-weight: normal; color: #475569; }
+		.action-bar { display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; flex-wrap: wrap; }
+        .btn { padding: 10px 18px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; transition: 0.3s; font-size: 13px; }
+        .btn-import { background: #10b981; }
+        .btn-export { background: #3b82f6; }
+        .btn-matriks { background: #8b5cf6; }
+        .btn-toggle { background: #f59e0b; }
+        .btn-profil { background: #475569; }
+        .btn-cetak-semua { background: #db2777; }
+        .btn-reset { background: #dc2626; } /* Tombol Reset Merah */
+        
+        .btn-cetak { background: #ef4444; color: white; border: none; padding: 5px 8px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 11px; margin-bottom: 3px; display: block; width: 100%; }
+        .btn-catatan { background: #0ea5e9; color: white; border: none; padding: 5px 8px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 11px; display: block; width: 100%; }
+        
+        #pilih-kelas { padding: 9px; border-radius: 8px; border: 2px solid var(--primary); font-weight: bold; display: none; }
+
+        .summary-grid { display: none; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .summary-box { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; }
+        .summary-box h4 { margin: 0 0 10px 0; color: var(--primary); border-bottom: 2px solid #e2e8f0; font-size: 14px; }
+
+        .rank-item { border-bottom: 1px dashed #ddd; padding: 5px 0; font-size: 13px; line-height: 1.4; }
+        .rank-item:last-child { border-bottom: none; }
+        .rank-number { color: var(--elegant-green); font-weight: 800; font-size: 15px; margin-right: 5px; }
+
+.table-container {
+    max-height: 70vh; /* Ngonci jangkungna tabel sangkan ngepas layar */
+    overflow: auto;
+    position: relative;
+    border: 1px solid #cbd5e1;
+}
+        table { width: 100%; border-collapse: separate; border-spacing: 0; background: white; }
+        th, td { 
+    padding: 2px 5px; /* Angka 2px ieu nu ngajantenkeun luhur-handapna ipis */
+    border-right: 1px solid #cbd5e1; 
+    border-bottom: 1px solid #cbd5e1; 
+    text-align: center; 
+    font-size: 12px; 
+    height: 24px; /* Maksa sangkan jangkung kotakna tetep pondok */
+}
+        
+        thead th { position: sticky; top: 0; z-index: 2; background: var(--elegant-green); color: white; border-top: 1px solid #cbd5e1; }
+        td.col-nama { text-align: left; position: sticky; left: 0; z-index: 1; background: white; min-width: 180px; border-right: 2px solid var(--elegant-green); }
+        th.col-nama { position: sticky; left: 0; z-index: 3; border-right: 2px solid white; }
+        td.col-aksi { position: sticky; right: 0; z-index: 1; background: var(--soft-green); min-width: 90px; border-left: 2px solid var(--elegant-green); vertical-align: middle; }
+        th.col-aksi { position: sticky; right: 0; z-index: 3; border-left: 2px solid white; }
+
+        .th-vertikal { height: 100px; vertical-align: bottom; padding-bottom: 5px; }
+		.text-vertikal { writing-mode: vertical-rl; transform: rotate(180deg); display: inline-block; white-space: nowrap; font-size: 11px; max-height: 90px; overflow: hidden; text-overflow: ellipsis; }
+
+        .teks-arab { font-family: 'ae_AlMohanad', serif; font-size: 18px; color: var(--primary); }
+        .text-merah { color: #ef4444 !important; font-weight: bold; }
+        
+        .input-edit { width: 35px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px; font-weight: bold; font-family: 'Segoe UI', sans-serif; font-size: 12px; }
+        .input-edit::-webkit-outer-spin-button, .input-edit::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .input-edit[type=number] { -moz-appearance: textfield; }
+        .badge-merah { background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin: 2px; display: inline-block; border: 1px solid #fecaca; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 1000px; max-height: 80vh; overflow-y: auto; position: relative; }
+        .modal-content-sm { max-width: 500px; }
+        .close-modal { position: absolute; top: 10px; right: 20px; font-size: 30px; cursor: pointer; color: #ef4444; }
+
+        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group label { display: block; font-weight: bold; font-size: 13px; margin-bottom: 5px; color: var(--primary); }
+        .form-group input { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+		
+/* --- KODE MAKSA BARIS SANGKAN SUPER PENDEK & GEPENG --- */
+        #tbody-rekap td {
+            padding: 1px 4px !important; /* Jarak luhur-handap super ipis */
+            height: 25px !important;     /* Maksa jangkungna mung 20px */
+            font-size: 11px !important;
+            vertical-align: middle !important;
+        }
+        
+        td.col-nama {
+            white-space: nowrap !important; /* Maksa ngaran panjang teu turun ka handap */
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            max-width: 160px !important;
+        }
+        
+.input-edit {
+    height: 16px !important;
+    width: 30px !important;
+    padding: 0px !important;
+    margin: 0px !important;
+    font-size: 11px !important;
+    font-weight: normal !important; /* <-- Ieu fungsina sangkan angka nilai jadi ipis/biasa */
+}
+        /* Maksa tombol Cetak & Catatan sangkan leutik pisan */
+        .btn-cetak, .btn-catatan {
+            padding: 2px 4px !important; 
+            font-size: 9px !important;
+            line-height: 1 !important;
+        }
+        .btn-cetak { margin-bottom: 2px !important; }
+        /* ------------------------------------------------------ */
+	</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-title">
+        <h2>REKAPITULASI HASIL SUMATIF TENGAH SEMESTER GANJIL</h2>
+		<h4>PESANTREN AL MA`TUQ</h4>
+		<h4>TAHUN PELAJARAN 1446-1447 H / 2025-2026 M</h4>
+        <h3 id="display-kelas"></h3>
+    </div>
+
+    <div class="action-bar">
+        <input type="file" id="fileUpload" style="display: none;" onchange="importExcel(event)" accept=".xlsx, .xls">
+        <button class="btn btn-import" onclick="document.getElementById('fileUpload').click()">📥 Import Excel</button>
+        <button class="btn btn-matriks" onclick="bukaMatriks()">📊 Matriks Global</button>
+        <button class="btn btn-export" onclick="exportKeseluruhan()">📤 Export Semua</button>
+        <button class="btn btn-toggle" onclick="toggleStatistik()">👁️ Statistik</button>
+        <button class="btn btn-profil" onclick="bukaProfil()">⚙️ Profil</button>
+        <button class="btn btn-cetak-semua" onclick="cetakSemuaSiswa()">🖨️ Cetak Rapot Kelas</button>
+        <button class="btn btn-reset" onclick="hapusDataLokal()">🗑️ Reset Data</button>
+        <select id="pilih-kelas" onchange="gantiKelas()"></select>
+    </div>
+
+    <div id="statistik-section" class="summary-grid">
+        <div class="summary-box">
+            <h4>🏆 Top 5 Ranking (Detail)</h4>
+            <div id="stat-top5"></div>
+        </div>
+        <div class="summary-box">
+            <h4>📊 Rekap Predikat Kelas Ini</h4>
+            <div id="stat-predikat-kelas" style="font-size: 13px; line-height: 1.8;"></div>
+        </div>
+        <div class="summary-box">
+            <h4>🚩 Siswa Rosib</h4>
+            <div id="stat-warning" style="font-size: 12px; line-height: 1.5;"></div>
+        </div>
+        <div class="summary-box" style="grid-column: span 3;">
+            <h4>📈 Detail Nilai Merah per Mapel (< 65)</h4>
+            <table style="width: 100%;">
+                <thead><tr><th style="width:20%">Mapel</th><th style="width:10%">Jml</th><th>Daftar Siswa</th></tr></thead>
+                <tbody id="stat-mapel-detail"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table id="tabel-rekap">
+            <thead id="thead-rekap"></thead>
+            <tbody id="tbody-rekap"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modal-matriks" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal" onclick="tutupMatriks()">&times;</span>
+        <h3 style="text-align: center; color: var(--primary);">MATRIKS DISTRIBUSI PREDIKAT (SEMUA KELAS)</h3>
+        <div id="rekap-global-tabel" class="table-container"></div>
+    </div>
+</div>
+
+<div id="modal-profil" class="modal-overlay">
+    <div class="modal-content modal-content-sm">
+        <span class="close-modal" onclick="tutupProfil()">&times;</span>
+        <h3 style="text-align: center; color: var(--primary); margin-top: 0;">Pengaturan Master & Profil Laporan</h3>
+        <div class="form-group"><label>Judul Laporan</label><input type="text" id="prof-laporan1" value="LAPORAN HASIL PENILAIAN TENGAH SEMESTER"></div>
+        <div class="form-group"><label>Nama Madrasah</label><input type="text" id="prof-madrasah" value="PESANTREN AL-MA'TUQ"></div>
+        <div class="form-group"><label>Alamat & Info</label><input type="text" id="prof-alamat" value="Jl. Kadudampit Km. 3 Sukabumi"></div>
+        <div class="form-group"><label>Semester</label><input type="text" id="prof-semester" value="Ganjil"></div>
+        <div class="form-group"><label>Tahun Pelajaran (T.P)</label><input type="text" id="prof-laporan2" value="1446-1447 H"></div>
+        <div class="form-group"><label>Titimangsa Ttd</label><input type="text" id="prof-titimangsa" value="Sukabumi, 20 Oktober 2025"></div>
+        <div class="form-group"><label>Nama Wali Kelas Default</label><input type="text" id="prof-walas" value="(Ust. Fulan, S.Pd.)"></div>
+        <button class="btn btn-import" style="width: 100%; margin-top: 10px;" onclick="simpanProfil()">💾 Simpan Pengaturan</button>
+    </div>
+</div>
+
+<div id="modal-catatan" class="modal-overlay">
+    <div class="modal-content modal-content-sm">
+        <span class="close-modal" onclick="tutupCatatan()">&times;</span>
+        <h3 style="color: var(--primary); margin-top: 0; margin-bottom: 5px;">📝 Catatan Wali Kelas</h3>
+        <p id="nama-siswa-catatan" style="margin-top: 0; font-weight: bold; color: #64748b; margin-bottom: 15px;"></p>
+        <input type="hidden" id="id-siswa-catatan">
+        <textarea id="teks-catatan" rows="6" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-family: inherit; font-size: 14px;" placeholder="Tuliskan catatan motivasi / evaluasi siswa di sini..."></textarea>
+        <button class="btn btn-import" style="width: 100%; margin-top: 15px;" onclick="simpanCatatan()">💾 Simpan Catatan</button>
+    </div>
+</div>
+
+<script>
+    let semuaData = []; 
+    let mapelAktif = [];
+
+    let profilMaster = {
+        laporan1: "LAPORAN HASIL PENILAIAN TENGAH SEMESTER",
+        madrasah: "PESANTREN AL-MA'TUQ",
+        alamat: "Jl. Kadudampit Km. 3 Sukabumi",
+        semester: "Ganjil",
+        laporan2: "1446-1447 H", 
+        titimangsa: "Sukabumi, 20 Oktober 2025",
+        walas: "(Ust. Fulan, S.Pd.)"
+    };
+
+    // FUNGSI LOCAL STORAGE (AUTO-SAVE)
+    window.onload = function() {
+        muatDariLocalStorage();
+    };
+
+    function simpanKeLocalStorage() {
+        localStorage.setItem('rekapDataPTS', JSON.stringify(semuaData));
+        localStorage.setItem('profilMasterPTS', JSON.stringify(profilMaster));
+    }
+
+    function muatDariLocalStorage() {
+        const savedProfil = localStorage.getItem('profilMasterPTS');
+        if (savedProfil) {
+            profilMaster = JSON.parse(savedProfil);
+            document.getElementById('prof-laporan1').value = profilMaster.laporan1;
+            document.getElementById('prof-madrasah').value = profilMaster.madrasah;
+            document.getElementById('prof-alamat').value = profilMaster.alamat;
+            document.getElementById('prof-semester').value = profilMaster.semester;
+            document.getElementById('prof-laporan2').value = profilMaster.laporan2;
+            document.getElementById('prof-titimangsa').value = profilMaster.titimangsa;
+            document.getElementById('prof-walas').value = profilMaster.walas;
+        }
+
+        const savedData = localStorage.getItem('rekapDataPTS');
+        if (savedData) {
+            semuaData = JSON.parse(savedData);
+            if (semuaData.length > 0) {
+                const select = document.getElementById('pilih-kelas');
+                select.innerHTML = "";
+                const klsList = [...new Set(semuaData.map(d => d.kelas))];
+                klsList.forEach(k => {
+                    let opt = document.createElement('option');
+                    opt.value = k; opt.text = "Kelas: " + k;
+                    select.appendChild(opt);
+                });
+                select.style.display = "inline-block";
+                gantiKelas();
+            }
+        }
+    }
+
+    function hapusDataLokal() {
+        if(confirm("Apakah Anda yakin ingin menghapus seluruh data kelas yang tersimpan? (Lakukan ini jika ingin import file Excel yang baru dan bersih)")) {
+            localStorage.removeItem('rekapDataPTS');
+            location.reload();
+        }
+    }
+
+    // FUNGSI-FUNGSI UI
+    function toggleStatistik() {
+        const s = document.getElementById('statistik-section');
+        s.style.display = (s.style.display === 'none' || s.style.display === '') ? 'grid' : 'none';
+    }
+
+    function bukaMatriks() { document.getElementById('modal-matriks').style.display = 'flex'; renderMatriks(); }
+    function tutupMatriks() { document.getElementById('modal-matriks').style.display = 'none'; }
+    function bukaProfil() { document.getElementById('modal-profil').style.display = 'flex'; }
+    function tutupProfil() { document.getElementById('modal-profil').style.display = 'none'; }
+    
+    function bukaCatatan(id) {
+        const s = semuaData.find(d => d.id === id);
+        if(!s) return;
+        document.getElementById('id-siswa-catatan').value = s.id;
+        document.getElementById('nama-siswa-catatan').innerText = "Siswa: " + s.nama;
+        document.getElementById('teks-catatan').value = s.catatan || "";
+        document.getElementById('modal-catatan').style.display = 'flex';
+    }
+    function tutupCatatan() { document.getElementById('modal-catatan').style.display = 'none'; }
+    
+    function simpanCatatan() {
+        const id = document.getElementById('id-siswa-catatan').value;
+        const val = document.getElementById('teks-catatan').value;
+        const siswa = semuaData.find(d => d.id === id);
+        if(siswa) {
+            siswa.catatan = val;
+            simpanKeLocalStorage(); // AUTO-SAVE Trigger
+            alert("Catatan untuk " + siswa.nama + " berhasil disimpan!");
+            tutupCatatan();
+        }
+    }
+
+    function simpanProfil() {
+        profilMaster.laporan1 = document.getElementById('prof-laporan1').value;
+        profilMaster.madrasah = document.getElementById('prof-madrasah').value;
+        profilMaster.alamat = document.getElementById('prof-alamat').value;
+        profilMaster.semester = document.getElementById('prof-semester').value;
+        profilMaster.laporan2 = document.getElementById('prof-laporan2').value;
+        profilMaster.titimangsa = document.getElementById('prof-titimangsa').value;
+        profilMaster.walas = document.getElementById('prof-walas').value;
+        simpanKeLocalStorage(); // AUTO-SAVE Trigger
+        alert("Pengaturan profil berhasil disimpan!");
+        tutupProfil();
+    }
+
+    function importExcel(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const data = new Uint8Array(event.target.result);
+            const wb = XLSX.read(data, {type: 'array'});
+            
+            // JIKA IMPORT, TIMPA SEMUA DATA LAMA
+            semuaData = [];
+            const select = document.getElementById('pilih-kelas');
+            select.innerHTML = "";
+
+            wb.SheetNames.forEach(name => {
+                const sheet = wb.Sheets[name];
+                const json = XLSX.utils.sheet_to_json(sheet);
+                if(json.length > 0) {
+                    prosesSheet(json, name);
+                    let opt = document.createElement('option');
+                    opt.value = name; opt.text = "Kelas: " + name;
+                    select.appendChild(opt);
+                }
+            });
+            select.style.display = "inline-block";
+            
+            simpanKeLocalStorage(); // AUTO-SAVE Trigger setelah import
+            gantiKelas();
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function prosesSheet(data, namaKelas) {
+        const headers = Object.keys(data[0]);
+        const keyNama = headers.find(h => h.toUpperCase().includes("NAMA")) || headers[1];
+        const ignore = ["NO", "NAMA", "NAMA SISWA", "JML", "JUMLAH", "RATA2", "RANKING", "PREDIKAT", "S", "I", "A", "SAKIT", "IZIN", "ALPA", "CATATAN"];
+        const mapels = headers.filter(h => !ignore.includes(h.toUpperCase().trim()) && !h.startsWith("__EMPTY"));
+        
+        data.forEach((row, index) => {
+            let nMapel = {};
+            mapels.forEach(m => nMapel[m] = row[m] !== undefined ? row[m] : "");
+            semuaData.push({
+                id: Math.random().toString(36).substr(2, 9),
+                kelas: namaKelas, 
+                nama: row[keyNama] || "Siswa",
+                nilai: nMapel, a: row["A"]||0, i: row["I"]||0, s: row["S"]||0, 
+                catatan: "", mapels: mapels,
+                noAbsen: index
+            });
+        });
+        hitungUlang(namaKelas);
+    }
+
+    function hitungUlang(namaKelas) {
+        const dataKls = semuaData.filter(d => d.kelas === namaKelas);
+        
+        const colQuran = dataKls[0].mapels.find(m => {
+            let bersih = m.toUpperCase().replace(/[^A-Z]/g, '');
+            return bersih.includes("QURAN") || bersih.includes("TAHFIDZ");
+        });
+
+        dataKls.forEach(s => {
+            let total = 0, merah = 0;
+            s.mapels.forEach(m => {
+                let v = parseFloat(s.nilai[m]);
+                if(!isNaN(v)) {
+                    total += v;
+                    if(v > 0 && v < 65) merah++; 
+                }
+            });
+            s.jml = total;
+            s.rata2 = parseFloat((total / s.mapels.length).toFixed(2));
+            s.merah = merah;
+            
+            let nQ = 100;
+            if (colQuran && !isNaN(parseFloat(s.nilai[colQuran]))) {
+                nQ = parseFloat(s.nilai[colQuran]);
+            }
+            
+            s.predikat = (s.rata2 < 65 || merah > 2 || (nQ > 0 && nQ < 65)) ? "راسب" : 
+                         (s.rata2 < 70) ? "مقبول" : (s.rata2 < 80) ? "جيد" : (s.rata2 < 90) ? "جيد جدا" : "ممتاز";
+        });
+
+        let hitungRanking = [...dataKls].sort((a,b) => b.rata2 - a.rata2);
+        hitungRanking.forEach((s, i) => s.rank = i + 1);
+    }
+
+    function gantiKelas() {
+        const kls = document.getElementById('pilih-kelas').value;
+        if(!kls) return;
+        document.getElementById('display-kelas').innerText = "KELAS: " + kls;
+        
+        const dataKls = semuaData.filter(d => d.kelas === kls).sort((a,b) => a.noAbsen - b.noAbsen);
+        if(dataKls.length > 0) {
+            mapelAktif = dataKls[0].mapels;
+            renderTabel(dataKls);
+            renderStats(dataKls);
+        }
+    }
+
+    function renderStats(data) {
+        let sortedRank = [...data].sort((a,b) => b.rata2 - a.rata2);
+        document.getElementById('stat-top5').innerHTML = sortedRank.slice(0,5).map(s => 
+            `<div class="rank-item">
+                <span class="rank-number">${s.rank}.</span> <b>${s.nama}</b><br>
+                <small>JML: ${s.jml} | RATA: ${s.rata2} | <span class="teks-arab">${s.predikat}</span></small>
+            </div>`).join("");
+        
+        const pList = ["ممتاز", "جيد جدا", "جيد", "مقبول", "راسب"];
+        document.getElementById('stat-predikat-kelas').innerHTML = pList.map(p => {
+            let count = data.filter(s => s.predikat === p).length;
+            return `<div class="teks-arab" style="display:inline-block; width:80px;">${p}</div>: <b>${count}</b> Siswa`;
+        }).join("<br>");
+
+        let qm = data.filter(s => {
+            let qKey = s.mapels.find(m => {
+                let bersih = m.toUpperCase().replace(/[^A-Z]/g, '');
+                return bersih.includes("QURAN") || bersih.includes("TAHFIDZ");
+            });
+            return qKey && parseFloat(s.nilai[qKey]) > 0 && parseFloat(s.nilai[qKey]) < 65;
+        });
+        let m3 = data.filter(s => s.merah > 3);
+        
+        let warnHtml = `<b>Al-Qur'an < 65 (${qm.length}):</b><br>`;
+        warnHtml += qm.map(s => `<span class="badge-merah">${s.nama}</span>`).join("") || "-";
+        warnHtml += `<br><br><b>Nilai Merah > 3 (${m3.length}):</b><br>`;
+        warnHtml += m3.map(s => `<span class="badge-merah">${s.nama}</span>`).join("") || "-";
+        document.getElementById('stat-warning').innerHTML = warnHtml;
+
+        let html = "";
+        mapelAktif.forEach(m => {
+            let sm = data.filter(s => parseFloat(s.nilai[m]) > 0 && parseFloat(s.nilai[m]) < 65);
+            if(sm.length > 0) html += `<tr><td>${m}</td><td>${sm.length}</td><td align="left">${sm.map(x=>`<span class="badge-merah">${x.nama} (${x.nilai[m]})</span>`).join("")}</td></tr>`;
+        });
+        document.getElementById('stat-mapel-detail').innerHTML = html || "<tr><td colspan='3'>Tidak ada nilai merah</td></tr>";
+    }
+
+    function renderMatriks() {
+        const klsList = [...new Set(semuaData.map(d => d.kelas))];
+        const preds = ["ممتاز", "جيد جدا", "جيد", "مقبول", "راسب"];
+        let h = `<table><thead><tr><th>Predikat</th>` + klsList.map(k => `<th>${k}</th>`).join("") + `<th>Total</th></tr></thead><tbody>`;
+        preds.forEach(p => {
+            h += `<tr><td class="teks-arab">${p}</td>`;
+            let totalP = 0;
+            klsList.forEach(k => {
+                let c = semuaData.filter(d => d.kelas === k && d.predikat === p).length;
+                h += `<td>${c}</td>`; totalP += c;
+            });
+            h += `<td style="background:#f1f5f9; font-weight:bold;">${totalP}</td></tr>`;
+        });
+        document.getElementById('rekap-global-tabel').innerHTML = h + "</tbody></table>";
+    }
+
+function renderTabel(data) {
+        let h = `<tr>
+            <th rowspan="2">No</th>
+            <th rowspan="2" class="col-nama">Nama Siswa</th>
+            <th colspan="${mapelAktif.length}">Mata Pelajaran</th>
+            <th rowspan="2">Jml</th><th rowspan="2">Rata2</th><th rowspan="2">Rank</th><th rowspan="2">Predikat</th><th rowspan="2">Merah</th>
+            <th colspan="3">Absen</th>
+            <th rowspan="2" class="col-aksi">Aksi Laporan</th>
+            </tr><tr>`;
+        
+        mapelAktif.forEach(m => h += `<th class="th-vertikal"><span class="text-vertikal">${m}</span></th>`);
+        h += `<th>A</th><th>I</th><th>S</th></tr>`;
+        document.getElementById('thead-rekap').innerHTML = h;
+
+        document.getElementById('tbody-rekap').innerHTML = data.map((s, idx) => `
+            <tr>
+                <td>${idx + 1}</td>
+                <td class="col-nama">${s.nama}</td>
+                ${mapelAktif.map(m => {
+                    let nilai = parseFloat(s.nilai[m]);
+                    if(isNaN(nilai)) nilai = "";
+                    let isMerah = (nilai !== "" && nilai > 0 && nilai < 65) ? "text-merah" : "";
+                    let safeM = m.replace(/'/g, "\\'"); 
+                    return `<td><input type="number" class="input-edit ${isMerah}" value="${nilai}" onchange="editNilai('${s.id}', '${safeM}', this.value)"></td>`;
+                }).join("")}
+                <td style="font-weight:bold;">${s.jml}</td>
+                <td style="font-weight:bold;">${s.rata2}</td>
+                <td>${s.rank}</td>
+                <td class="teks-arab ${s.predikat==='راسب'?'text-merah':''}">${s.predikat}</td>
+                <td class="text-merah">${s.merah}</td>
+                
+                <td style="padding:1px;"><input type="number" class="input-edit" value="${s.a}" onchange="editAbsen('${s.id}', 'a', this.value)" min="0"></td>
+                <td style="padding:1px;"><input type="number" class="input-edit" value="${s.i}" onchange="editAbsen('${s.id}', 'i', this.value)" min="0"></td>
+                <td style="padding:1px;"><input type="number" class="input-edit" value="${s.s}" onchange="editAbsen('${s.id}', 's', this.value)" min="0"></td>
+                
+                <td class="col-aksi">
+                    <button class="btn-cetak" onclick="cetakSiswa('${s.id}')">🖨️ Cetak</button>
+                    <button class="btn-catatan" onclick="bukaCatatan('${s.id}')">📝 Catatan</button>
+                </td>
+            </tr>`).join("");
+    }
+
+    function exportKeseluruhan() {
+        if(semuaData.length === 0) return alert("Belum ada data!");
+        const wb = XLSX.utils.book_new();
+        const klsList = [...new Set(semuaData.map(d => d.kelas))];
+        
+        klsList.forEach(k => {
+            const dataKls = semuaData.filter(d => d.kelas === k).sort((a,b) => a.noAbsen - b.noAbsen);
+            const exportData = dataKls.map((s, idx) => {
+                let obj = { "No": idx + 1, "Nama": s.nama };
+                mapelAktif.forEach(m => obj[m] = s.nilai[m]);
+                obj["Jumlah"] = s.jml; obj["Rata-Rata"] = s.rata2; 
+                obj["Predikat"] = s.predikat; obj["Ranking"] = s.rank;
+                return obj;
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportData), k);
+        });
+        XLSX.writeFile(wb, "Rekap_PTS_Lengkap_Update.xlsx");
+    }
+
+    function editNilai(id, mapel, val) {
+        const siswa = semuaData.find(d => d.id === id);
+        siswa.nilai[mapel] = val === "" ? "" : parseFloat(val);
+        hitungUlang(siswa.kelas);
+        simpanKeLocalStorage(); // AUTO-SAVE Trigger setelah edit nilai
+        gantiKelas();
+    }
+function editAbsen(id, jenis, val) {
+        const siswa = semuaData.find(d => d.id === id);
+        if(siswa) {
+            siswa[jenis] = val === "" ? 0 : parseInt(val);
+            simpanKeLocalStorage(); // AUTO-SAVE: Sangkan asup ka rapor
+        }
+    }
+	
+    function getPredikatMapel(nilai) {
+        let v = parseFloat(nilai);
+        if(isNaN(v)) return "";
+        if(v < 65) return "راسب";
+        if(v < 70) return "مقبول";
+        if(v < 80) return "جيد";
+        if(v < 90) return "جيد جدا";
+        return "ممتاز";
+    }
+
+    function generateHTMLRapot(s, totalSiswa) {
+        let mapelRows = mapelAktif.map((m, i) => {
+            let nilai = parseFloat(s.nilai[m]);
+            let isMerah = (!isNaN(nilai) && nilai > 0 && nilai < 65) ? 'text-merah' : '';
+            return `
+            <tr>
+                <td style="padding: 2px;">${i+1}</td>
+                <td style="padding: 2px; text-align: left; padding-left: 10px;">${m}</td>
+                <td style="padding: 2px;">${isNaN(nilai) ? '' : nilai}</td>
+                <td class="teks-arab ${isMerah}" style="padding: 2px;">${getPredikatMapel(nilai)}</td>
+            </tr>`;
+        }).join("");
+
+        return `
+        <div style="width: 100%; box-sizing: border-box;">
+            <div style="text-align: center; font-weight: bold; margin-bottom: 10px; line-height: 1.4; font-size: 15px; text-transform: uppercase;">
+                ${profilMaster.laporan1}<br>
+                ${profilMaster.madrasah}<br>
+                <span style="font-size: 13px; text-transform: none; font-weight: normal;">${profilMaster.alamat}</span>
+            </div>
+
+            <table style="width: 100%; margin-bottom: 10px; font-weight: bold; font-size: 13px; border: none;">
+                <tr>
+                    <td width="15%" style="padding: 2px 0;">Nama Siswa</td><td width="2%">:</td><td width="48%">${s.nama}</td>
+                    <td width="15%">Semester</td><td width="2%">:</td><td width="18%">${profilMaster.semester}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 2px 0;">Kelas</td><td>:</td><td>${s.kelas}</td>
+                    <td>T.P</td><td>:</td><td>${profilMaster.laporan2}</td>
+                </tr>
+            </table>
+
+            <table style="width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 15px; font-size: 12px;" border="1">
+                <tr style="background: #f0f0f0;">
+                    <th width="5%" style="padding: 6px;">No</th>
+                    <th width="45%" style="padding: 6px;">Mata Pelajaran</th>
+                    <th width="15%" style="padding: 6px;">Nilai</th>
+                    <th width="35%" style="padding: 6px;">Keterangan</th>
+                </tr>
+                ${mapelRows}
+					<tr>
+<tr>
+        <td colspan="2" style="text-align: center; font-weight: bold; font-size: 11px;">Jumlah Nilai</span></td>
+        <td style="text-align: center; font-weight: bold; font-size: 14px;">${s.jml}</td>     
+    </tr>
+    <tr>
+        <td colspan="2" style="text-align: center; font-weight: bold; font-size: 11px;">Rata-rata</span></td>
+        <td style="text-align: center; font-weight: bold; font-size: 14px;">${s.rata2}</td>
+        <td colspan="2" style="padding: 1px; font-weight: bold; text-align: center;" class="teks-arab">${s.predikat}</td>
+    </tr>
+	
+	<tr>
+       <td colspan="2" style="text-align: left; padding: 6px 10px; font-weight: bold;">Peringkat</td>
+       <td colspan="2" style="padding: 6px; font-weight: bold; text-align: center;">Ke ${s.rank} dari ${totalSiswa} Siswa</td>
+    </tr>
+</table>
+
+            <table style="width: 100%; font-size: 13px;" border="0">
+                <tr>
+                    <td width="55%" valign="top">
+                        <div style="font-weight: bold; margin-bottom: 5px;">Ketidakhadiran:</div>
+                        <table style="width: 70%; border-collapse: collapse; font-weight: normal;" border="0">
+                            <tr><td width="55%" style="padding: 2px 0;">Sakit</td><td width="5%">:</td><td>${s.s} Hari</td></tr>
+                            <tr><td style="padding: 2px 0;">Izin</td><td>:</td><td>${s.i} Hari</td></tr>
+                            <tr><td style="padding: 2px 0;">Alpa</td><td>:</td><td>${s.a} Hari</td></tr>
+                        </table>
+
+                        <div style="margin-top: 15px; border: 1px solid #000; padding: 10px; min-height: 60px; width: 90%;">
+                            <span style="font-weight: bold; text-decoration: underline;">Catatan Wali Kelas:</span><br><br>
+                            ${s.catatan || '-'}
+                        </div>
+                    </td>
+                    <td width="45%" valign="top" style="text-align: center; padding-top: 5px;">
+                        ${profilMaster.titimangsa}<br>
+                        Wali Kelas,<br><br><br><br><br>
+                        <span style="font-weight: bold; text-decoration: underline;">${profilMaster.walas}</span>
+                    </td>
+                </tr>
+            </table>
+        </div>`;
+    }
+
+    function cetakSiswa(id) {
+        const s = semuaData.find(d => d.id === id);
+        if(!s) return;
+        const totalSiswa = semuaData.filter(d => d.kelas === s.kelas).length;
+
+        let printWin = window.open('', '_blank');
+        let htmlContent = `
+        <html><head><title>Cetak Rapot - ${s.nama}</title>
+            <style>
+                @font-face { font-family: 'ae_AlMohanad'; src: url('https://fonts.cdnfonts.com/s/73154/ae_AlMohanad.woff') format('woff'); }
+                body { font-family: Arial, sans-serif; color: #000; padding: 0; }
+                .teks-arab { font-family: 'ae_AlMohanad', serif; font-size: 18px; }
+                .text-merah { color: red !important; }
+                @media print { @page { size: A4; margin: 10mm; } body { -webkit-print-color-adjust: exact; } }
+            </style>
+        </head><body>
+            ${generateHTMLRapot(s, totalSiswa)}
+        </body></html>`;
+        
+        printWin.document.write(htmlContent);
+        printWin.document.close();
+        setTimeout(() => { printWin.print(); }, 800);
+    }
+
+    function cetakSemuaSiswa() {
+        const kls = document.getElementById('pilih-kelas').value;
+        if(!kls) return alert("Pilih kelas terlebih dahulu!");
+        
+        const dataKls = semuaData.filter(d => d.kelas === kls).sort((a,b) => a.noAbsen - b.noAbsen);
+        if(dataKls.length === 0) return;
+
+        let printWin = window.open('', '_blank');
+        
+        let allPagesHTML = dataKls.map((s, index) => {
+            let pageBreak = (index < dataKls.length - 1) ? '<div style="page-break-after: always;"></div>' : '';
+            return generateHTMLRapot(s, dataKls.length) + pageBreak;
+        }).join("");
+
+        let fullHTML = `
+        <html><head><title>Cetak Rapot Kelas - ${kls}</title>
+            <style>
+                @font-face { font-family: 'ae_AlMohanad'; src: url('https://fonts.cdnfonts.com/s/73154/ae_AlMohanad.woff') format('woff'); }
+                body { font-family: Arial, sans-serif; color: #000; padding: 0; }
+                .teks-arab { font-family: 'ae_AlMohanad', serif; font-size: 18px; }
+                .text-merah { color: red !important; }
+                @media print { @page { size: A4; margin: 10mm; } body { -webkit-print-color-adjust: exact; } }
+            </style>
+        </head><body>
+            ${allPagesHTML}
+        </body></html>`;
+
+        printWin.document.write(fullHTML);
+        printWin.document.close();
+        
+        setTimeout(() => { printWin.print(); }, 1200); 
+    }
+</script>
+</body>
+</html>
