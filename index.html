@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+
 	<link rel="manifest" href="manifest.json">
 	<script>
-	if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
   }
 	</script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aplikasi Rekap Nilai</title>
+    <title>E-REKAP NILAI</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
 	
@@ -41,9 +42,8 @@
         .btn-cetak-semua { background: #db2777; }
         .btn-reset { background: #dc2626; } /* Tombol Reset Merah */
         
-        .btn-cetak { background: #ef4444; color: white; border: none; padding: 5px 8px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 11px; margin-bottom: 3px; display: block; width: 100%; }
-        .btn-catatan { background: #0ea5e9; color: white; border: none; padding: 5px 8px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 11px; display: block; width: 100%; }
-        
+.btn-cetak { background: #ef4444; color: white; border: none; padding: 5px 8px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 11px; display: inline-block; margin-right: 3px; width: auto; }
+.btn-catatan { background: #0ea5e9; color: white; border: none; padding: 5px 8px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 11px; display: inline-block; width: auto; }        
         #pilih-kelas { padding: 9px; border-radius: 8px; border: 2px solid var(--primary); font-weight: bold; display: none; }
 
         .summary-grid { display: none; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 25px; }
@@ -55,8 +55,8 @@
         .rank-number { color: var(--elegant-green); font-weight: 800; font-size: 15px; margin-right: 5px; }
 
 .table-container {
-    max-height: 70vh; /* Ngonci jangkungna tabel sangkan ngepas layar */
-    overflow: auto;
+    max-height: 70vh; 
+    overflow: auto;   /* Ini wajib agar scroll terjadi di dalam kontainer */
     position: relative;
     border: 1px solid #cbd5e1;
 }
@@ -144,7 +144,7 @@
         <button class="btn btn-import" onclick="document.getElementById('fileUpload').click()">📥 Import Excel</button>
         <button class="btn btn-matriks" onclick="bukaMatriks()">📊 Matriks Global</button>
         <button class="btn btn-export" onclick="exportKeseluruhan()">📤 Export Semua</button>
-        <button class="btn btn-toggle" onclick="toggleStatistik()">🙈 Statistik</button>
+        <button class="btn btn-toggle" onclick="toggleStatistik()">🙈️ Statistik</button>
         <button class="btn btn-profil" onclick="bukaProfil()">⚙️ Profil</button>
         <button class="btn btn-cetak-semua" onclick="cetakSemuaSiswa()">🖨️ Cetak Rapot Kelas</button>
         <button class="btn btn-reset" onclick="hapusDataLokal()">🗑️ Reset Data</button>
@@ -323,32 +323,48 @@
         tutupProfil();
     }
 
-    function importExcel(e) {
+function importExcel(e) {
         const file = e.target.files[0];
+        if (!file) return; // Mencegah error jika batal pilih file
+
         const reader = new FileReader();
         reader.onload = function(event) {
             const data = new Uint8Array(event.target.result);
             const wb = XLSX.read(data, {type: 'array'});
             
-            // JIKA IMPORT, TIMPA SEMUA DATA LAMA
-            semuaData = [];
-            const select = document.getElementById('pilih-kelas');
-            select.innerHTML = "";
-
             wb.SheetNames.forEach(name => {
                 const sheet = wb.Sheets[name];
                 const json = XLSX.utils.sheet_to_json(sheet);
                 if(json.length > 0) {
+                    // Cek apakah kelas ini sudah ada. Jika ya, hapus data kelas yang lama 
+                    // agar tertimpa dengan data update dari Excel (mencegah duplikat).
+                    semuaData = semuaData.filter(d => d.kelas !== name);
+                    
+                    // Proses dan masukkan data kelas yang baru diimport
                     prosesSheet(json, name);
-                    let opt = document.createElement('option');
-                    opt.value = name; opt.text = "Kelas: " + name;
-                    select.appendChild(opt);
                 }
+            });
+
+            // Re-generate dropdown daftar kelas dari data yang terkumpul
+            const select = document.getElementById('pilih-kelas');
+            select.innerHTML = "";
+            const klsList = [...new Set(semuaData.map(d => d.kelas))];
+            
+            klsList.forEach(k => {
+                let opt = document.createElement('option');
+                opt.value = k; opt.text = "Kelas: " + k;
+                select.appendChild(opt);
             });
             select.style.display = "inline-block";
             
+            // Otomatis arahkan ke kelas terakhir yang diimport
+            select.value = wb.SheetNames[wb.SheetNames.length - 1];
+            
             simpanKeLocalStorage(); // AUTO-SAVE Trigger setelah import
             gantiKelas();
+
+            // Reset input file agar user bisa klik import file yang sama jika ada revisi
+            document.getElementById('fileUpload').value = "";
         };
         reader.readAsArrayBuffer(file);
     }
@@ -560,28 +576,29 @@ function editAbsen(id, jenis, val) {
         return "ممتاز";
     }
 
-    function generateHTMLRapot(s, totalSiswa) {
+function generateHTMLRapot(s, totalSiswa) {
         let mapelRows = mapelAktif.map((m, i) => {
             let nilai = parseFloat(s.nilai[m]);
             let isMerah = (!isNaN(nilai) && nilai > 0 && nilai < 65) ? 'text-merah' : '';
             return `
             <tr>
-                <td style="padding: 2px;">${i+1}</td>
-                <td style="padding: 2px; text-align: left; padding-left: 10px;">${m}</td>
-                <td style="padding: 2px;">${isNaN(nilai) ? '' : nilai}</td>
-                <td class="teks-arab ${isMerah}" style="padding: 2px;">${getPredikatMapel(nilai)}</td>
+                <td style="padding: 4px;">${i+1}</td>
+                <td style="padding: 4px; text-align: left; padding-left: 10px;">${m}</td>
+                <td style="padding: 4px; font-weight: bold;">${isNaN(nilai) ? '' : nilai}</td>
+                <td class="teks-arab ${isMerah}" style="padding: 4px;">${getPredikatMapel(nilai)}</td>
             </tr>`;
         }).join("");
 
         return `
-        <div style="width: 100%; box-sizing: border-box;">
-            <div style="text-align: center; font-weight: bold; margin-bottom: 10px; line-height: 1.4; font-size: 15px; text-transform: uppercase;">
+        <div style="width: 100%; box-sizing: border-box; font-family: Arial, sans-serif; font-size: 12px; color: #000;">
+            
+            <div style="text-align: center; font-weight: bold; margin-bottom: 15px; line-height: 1.4; font-size: 14px; text-transform: uppercase;">
                 ${profilMaster.laporan1}<br>
                 ${profilMaster.madrasah}<br>
-                <span style="font-size: 13px; text-transform: none; font-weight: normal;">${profilMaster.alamat}</span>
+                <span style="font-size: 12px; text-transform: none; font-weight: normal;">${profilMaster.alamat}</span>
             </div>
 
-            <table style="width: 100%; margin-bottom: 10px; font-weight: bold; font-size: 13px; border: none;">
+            <table style="width: 100%; margin-bottom: 10px; font-weight: bold; font-size: 12px; border: none;">
                 <tr>
                     <td width="15%" style="padding: 2px 0;">Nama Siswa</td><td width="2%">:</td><td width="48%">${s.nama}</td>
                     <td width="15%">Semester</td><td width="2%">:</td><td width="18%">${profilMaster.semester}</td>
@@ -600,38 +617,50 @@ function editAbsen(id, jenis, val) {
                     <th width="35%" style="padding: 6px;">Keterangan</th>
                 </tr>
                 ${mapelRows}
-					<tr>
-<tr>
-        <td colspan="2" style="text-align: center; font-weight: bold; font-size: 11px;">Jumlah Nilai</span></td>
-        <td style="text-align: center; font-weight: bold; font-size: 14px;">${s.jml}</td>     
-    </tr>
-    <tr>
-        <td colspan="2" style="text-align: center; font-weight: bold; font-size: 11px;">Rata-rata</span></td>
-        <td style="text-align: center; font-weight: bold; font-size: 14px;">${s.rata2}</td>
-        <td colspan="2" style="padding: 1px; font-weight: bold; text-align: center;" class="teks-arab">${s.predikat}</td>
-    </tr>
-	
-	<tr>
-       <td colspan="2" style="text-align: left; padding: 6px 10px; font-weight: bold;">Peringkat</td>
-       <td colspan="2" style="padding: 6px; font-weight: bold; text-align: center;">Ke ${s.rank} dari ${totalSiswa} Siswa</td>
-    </tr>
-</table>
-
-            <table style="width: 100%; font-size: 13px;" border="0">
                 <tr>
-                    <td width="55%" valign="top">
-                        <div style="font-weight: bold; margin-bottom: 5px;">Ketidakhadiran:</div>
-                        <table style="width: 70%; border-collapse: collapse; font-weight: normal;" border="0">
-                            <tr><td width="55%" style="padding: 2px 0;">Sakit</td><td width="5%">:</td><td>${s.s} Hari</td></tr>
-                            <tr><td style="padding: 2px 0;">Izin</td><td>:</td><td>${s.i} Hari</td></tr>
-                            <tr><td style="padding: 2px 0;">Alpa</td><td>:</td><td>${s.a} Hari</td></tr>
+                    <td colspan="2" style="text-align: center; font-weight: bold; padding: 4px;">Jumlah Nilai</td>
+                    <td style="text-align: center; font-weight: bold; padding: 4px;">${s.jml}</td>     
+                    <td rowspan="2" style="padding: 4px; font-weight: bold; text-align: center; font-size: 16px;" class="teks-arab">${s.predikat}</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="text-align: center; font-weight: bold; padding: 4px;">Rata-rata</td>
+                    <td style="text-align: center; font-weight: bold; padding: 4px;">${s.rata2}</td>
+                </tr>
+                <tr>
+                   <td colspan="2" style="text-align: left; padding: 6px 10px; font-weight: bold;">Peringkat</td>
+                   <td colspan="2" style="padding: 6px; font-weight: bold; text-align: center;">Ke ${s.rank} dari ${totalSiswa} Siswa</td>
+                </tr>
+            </table>
+
+            <table style="width: 100%; font-size: 12px;" border="0">
+                <tr>
+<td width="55%" valign="top">
+                        <div style="font-weight: bold; margin-bottom: 5px; font-size: 12px;">Ketidakhadiran:</div>
+                        
+                        <table style="width: 70%; border-collapse: collapse; font-weight: normal; font-size: 12px;" border="0">
+                            <tr>
+                                <td width="55%" style="padding: 2px 0;">Sakit</td>
+                                <td width="5%">:</td>
+                                <td>${s.s} Hari</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 2px 0;">Izin</td>
+                                <td>:</td>
+                                <td>${s.i} Hari</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 2px 0;">Alpa</td>
+                                <td>:</td>
+                                <td>${s.a} Hari</td>
+                            </tr>
                         </table>
 
-                        <div style="margin-top: 15px; border: 1px solid #000; padding: 10px; min-height: 60px; width: 90%;">
+                        <div style="margin-top: 15px; border: 1px solid #000; padding: 10px; min-height: 60px; width: 90%; font-size: 12px;">
                             <span style="font-weight: bold; text-decoration: underline;">Catatan Wali Kelas:</span><br><br>
                             ${s.catatan || '-'}
                         </div>
                     </td>
+					
                     <td width="45%" valign="top" style="text-align: center; padding-top: 5px;">
                         ${profilMaster.titimangsa}<br>
                         Wali Kelas,<br><br><br><br><br>
@@ -639,6 +668,7 @@ function editAbsen(id, jenis, val) {
                     </td>
                 </tr>
             </table>
+            
         </div>`;
     }
 
@@ -700,5 +730,4 @@ function editAbsen(id, jenis, val) {
     }
 </script>
 </body>
-
 </html>
